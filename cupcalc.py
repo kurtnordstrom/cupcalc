@@ -129,6 +129,10 @@ def make_ranking_dict(race_dict, dropped_cars=1, cars_per_group=1, lane_count=4)
 
 
 def get_ranks(csv_file_path, exclude_groups=[], dropped_cars=1, cars_per_group=1, lanes=4):
+    print("Excluding groups: %s" % ", ".join(exclude_groups))
+    print("Dropping the worst %s group(s)" % dropped_cars)
+    print("Each group contains %s car(s)" % cars_per_group)
+    print("Each car runs on %s lanes\n" % lanes)
     with open(csv_file_path, newline='') as csv_file:
         reader = csv.reader(csv_file)
         race_dict = make_dictionary(reader, exclude_groups)
