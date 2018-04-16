@@ -42,6 +42,8 @@ def make_dictionary(csvreader, exclude_groups=[]):
     while row != None:
         if row[0]:
             heat = int(row[0])
+            #group = row[1]
+        if row[1]:
             group = row[1]
             group_list.append(group)
         if group in exclude_groups:
