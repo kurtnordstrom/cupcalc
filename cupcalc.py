@@ -77,7 +77,8 @@ def make_dictionary(csvreader, exclude_groups=[]):
             raise Exception("Cannot exclude '%s', no such group" % excluded)
     return category_dict    
 
-def make_ranking_dict(race_dict, dropped_cars=1, cars_per_group=1, lane_count=4):
+def make_ranking_dict(race_dict, dropped_cars=1, cars_per_group=1, lane_count=4,\
+        drop_worst_heat=True):
     ranking_dict = {}
     group_count = 0
     group_list = []
@@ -101,15 +102,25 @@ def make_ranking_dict(race_dict, dropped_cars=1, cars_per_group=1, lane_count=4)
             if group in category_dict:
                 group_dict = category_dict[group]
             else:
-                category_result_dict[group] = 9.9 * lane_count
+                if drop_worst_heat:
+                    category_result_dict[group] = 9.9 * (lane_count - 1)
+                else:
+                    category_result_dict[group] = 9.9 * lane_count
                 continue
             if len(group_dict) != cars_per_group:
                 raise Exception("Found %s cars in group %s: Expected %s" %\
                         (len(group_dict), group, cars_per_group))
-            cum_time = 0.0
+            times = []
+            high_time = 0.0
             for car, car_dict in group_dict.items():
                 for heat in car_dict["heats"]:
-                    cum_time = cum_time + heat["time"]
+                    time = float(heat["time"])
+                    if time > high_time:
+                        high_time = time
+                    times.append(time)
+            if drop_worst_heat:
+                times.remove(high_time)
+            cum_time = sum(times)
             category_result_dict[group] = cum_time
 
     for category, category_result_dict in ranking_dict.items():
@@ -130,15 +141,17 @@ def make_ranking_dict(race_dict, dropped_cars=1, cars_per_group=1, lane_count=4)
     return ranking_dict
 
 
-def get_ranks(csv_file_path, exclude_groups=[], dropped_cars=1, cars_per_group=1, lanes=4):
+def get_ranks(csv_file_path, exclude_groups=[], dropped_cars=1,\
+        cars_per_group=1, lanes=4, drop_worst_heat=True):
     print("Excluding groups: %s" % ", ".join(exclude_groups))
     print("Dropping the worst %s group(s)" % dropped_cars)
     print("Each group contains %s car(s)" % cars_per_group)
-    print("Each car runs on %s lanes\n" % lanes)
+    print("Each car runs on %s lanes" % lanes)
+    print("Drop worst heat: %s\n" % drop_worst_heat)
     with open(csv_file_path, newline='') as csv_file:
         reader = csv.reader(csv_file)
         race_dict = make_dictionary(reader, exclude_groups)
-        rank_dict = make_ranking_dict(race_dict, dropped_cars, cars_per_group, lanes)
+        rank_dict = make_ranking_dict(race_dict, dropped_cars, cars_per_group, lanes, drop_worst_heat)
         rank_keys = list(rank_dict.keys())
         sorted_rank_keys = sorted(rank_keys, key=lambda key:rank_dict[key]['totals']['adjusted_total'])
         for i in range(len(sorted_rank_keys)):
@@ -155,9 +168,11 @@ def sanitize_row(line):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Process a CSV file from GPRM v17+ to calculate team standings")
-    parser.add_argument('--drop', type=int, default=1, help="The number of groups to drop the worst scores of")
+    parser.add_argument('--drop-groups', type=int, default=1, help="The number of groups to drop the worst scores of")
     parser.add_argument('--exclude', default="", help="A comma-separated list of groups to exclude from the calculations")
     parser.add_argument('--lanes', type=int, default=4, help="The number of lanes on the track")
+    parser.add_argument('--keep-worst-heat', default=False, action='store_true',\
+            help="Don't throw out the worst heat for each car")
     parser.add_argument('csv_path')
     args = parser.parse_args()
     if(args.exclude):
@@ -165,7 +180,8 @@ if __name__ == "__main__":
     else:
         exclude_list = []
     try:
-        get_ranks(os.path.abspath(args.csv_path), exclude_list, args.drop, 1, args.lanes)
+        get_ranks(os.path.abspath(args.csv_path), exclude_list,\
+                args.drop_groups, 1, args.lanes, not args.keep_worst_heat)
     except Exception as e:
         sys.stderr.write("Error: %s\n" % e)
 
